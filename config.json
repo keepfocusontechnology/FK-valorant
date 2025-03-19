@@ -1,8 +1,8 @@
 {
     "sleep_time": 0.1,
     "click_time": 0.12,
-    "display": true,
+    "display": false,
     "threshold": 0.4,
-    "scale": 1.0,
+    "scale": 0.8,
     "size": 80.0
 }

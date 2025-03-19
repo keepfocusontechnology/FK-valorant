@@ -35,6 +35,7 @@
 2. 必须先安装这个 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 3. 再运行 pip install -r requirements.txt
 4. 最后请右键管理员运行 valorant.bat 脚本（裸奔有风险，建议使用exe，需自行打包，或联系我）
+5. 如使用venv等虚拟环境请修改bat，内有说明
 
 注意：由于github上传文件大小限制，不提供Releases下载程序，需要打包好的exe请联系作者，微信 lookJlook
 

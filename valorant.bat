@@ -9,10 +9,10 @@ REM 结束所有正在运行的python.exe进程
 taskkill /F /IM python.exe
 
 REM 进入当前路径下的虚拟环境的Scripts目录
-REM cd "%CUR_DIR%\.venv\Scripts"
+cd "%CUR_DIR%\.venv\Scripts"
 
 REM 激活虚拟环境
-REM call activate
+call activate
 
 REM 切换回项目根目录
 cd "%CUR_DIR%"

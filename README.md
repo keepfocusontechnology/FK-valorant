@@ -14,8 +14,8 @@
 
 <div align="center">
 
-<img src="images/img_1.png" alt="image" width="400" />
-<img src="images/img.png" alt="image" width="400" />
+<img src="images/img_1.png" alt="image" width="400" style="max-height: 300px; object-fit: contain;" />
+<img src="images/img.png" alt="image" width="400" style="max-height: 300px; object-fit: contain;" />
 
 </div>
 

@@ -143,76 +143,53 @@ class LGDriver:
             if end.value - start.value >= target_ticks:
                 break
 
-    def s_move(self, x, y):
+    def smooth_move(self, x, y, min_steps=5, max_steps=20, scale_factor=5):
         """
-        模拟真实鼠标路径，加入随机抖动和曲线路径，确保最后一步精准到达目标点
+        平滑相对移动鼠标位置，步数根据移动距离动态计算，并避免移动偏差
+        参数:
+            x: 水平移动的总距离（正数向右，负数向左）
+            y: 垂直移动的总距离（正数向下，负数向上）
+            min_steps: 最小步数，默认 5
+            max_steps: 最大步数，默认 20
+            scale_factor: 距离缩放因子，用于调整步数与距离的敏感度，默认 5
+            delay: 每步之间的延迟时间（秒），默认 0.01 秒
         """
-        total_distance = math.sqrt(x ** 2 + y ** 2)
-        if total_distance == 0:
+        if not self.ok:
+            return
+        if x == 0 and y == 0:
             return
 
-        # 计算步数，确保更加自然
-        steps = int(total_distance / 5)
+        # 计算总移动距离
+        distance = math.sqrt(x ** 2 + y ** 2)
 
-        if steps == 0:
-            steps = 1
+        # 动态计算步数
+        steps = int(min(max(distance / scale_factor, min_steps), max_steps))
 
-        # 计算每次移动的基本步长
-        dx, dy = x / steps, y / steps
+        # 初始化累积误差
+        error_x = 0.0
+        error_y = 0.0
 
-        # 计算误差补偿（为最后一小步添加准确的偏移量）
-        remaining_x = x - dx * steps
-        remaining_y = y - dy * steps
+        # 计算每步的理论移动量
+        step_x_float = x / steps
+        step_y_float = y / steps
 
-        # 生成贝塞尔曲线控制点
-        control_points = self.generate_bezier_control_points(steps)
-        for i in range(steps):
-            # 根据贝塞尔曲线计算当前步的偏移量
-            t = i / steps
-            bezier_x, bezier_y = self.bezier_curve(t, control_points)
+        # 分步执行移动
+        for _ in range(steps):
+            # 累积浮点移动量
+            error_x += step_x_float
+            error_y += step_y_float
 
-            # 轻微抖动，模拟真实鼠标移动
-            jitter_x = random.uniform(-0.5, 0.5)
-            jitter_y = random.uniform(-0.5, 0.5)
+            # 计算当前步的整数移动量
+            move_x = int(round(error_x))
+            move_y = int(round(error_y))
 
-            # 计算当前步的实际移动量
-            current_dx = dx + bezier_x + jitter_x
-            current_dy = dy + bezier_y + jitter_y
+            # 更新累积误差
+            error_x -= move_x
+            error_y -= move_y
 
-            self.move(current_dx, current_dy)
-
-            # 模拟速度变化，停顿时间随机
-            sleep_time = random.uniform(2000, 3000)
-            self.microsecond_sleep(sleep_time)
-
-        # 最后一步精确调整，确保到达目标位置
-        self.move(dx + remaining_x, dy + remaining_y)
-
-    @staticmethod
-    def generate_bezier_control_points(steps):
-        # 生成贝塞尔曲线的控制点
-        control_points = []
-        for i in range(steps):
-            # 随机生成控制点，模拟曲线路径
-            control_x = random.uniform(-1, 1)
-            control_y = random.uniform(-1, 1)
-            control_points.append((control_x, control_y))
-        return control_points
-
-    @staticmethod
-    def bezier_curve(t, control_points):
-        # 计算贝塞尔曲线上的点
-        n = len(control_points) - 1
-        x = 0
-        y = 0
-        for i in range(n + 1):
-            # 贝塞尔曲线公式
-            binomial = math.comb(n, i)
-            term = binomial * (t ** i) * ((1 - t) ** (n - i))
-            x += control_points[i][0] * term
-            y += control_points[i][1] * term
-        return x, y
-
+            # 执行移动
+            self.lg_driver.moveR(move_x, move_y, True)
+            self.microsecond_sleep(2000)
 
 def initialize_model_and_driver(click_time, retries=3, delay=5):
     if getattr(sys, 'frozen', False):
@@ -290,7 +267,6 @@ def create_tk_window(root, scale):
     tk_window = tk.Toplevel(root)
     tk_window.overrideredirect(True)
     tk_window.attributes("-topmost", True)
-    tk_window.title("IDW")
     tk_window.geometry(f"{width}x{height}+10+280")
     tk_window.attributes("-alpha", 1)
     tk_window.withdraw()
@@ -353,7 +329,7 @@ def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy):
         time.sleep(sleep_time)
     else:
         if abs_x <= delta_size and abs_y <= delta_size:
-            driver.s_move(relative_x, relative_y)
+            driver.smooth_move(relative_x, relative_y)
             driver.click()
             time.sleep(sleep_time)
 
@@ -370,7 +346,7 @@ def perform_action_body(driver, relative_x, relative_y, sleep_time, size, body_x
     delta_size = size * (xx / 50)
 
     if abs_x <= delta_size and abs_y <= delta_size:
-        driver.s_move(relative_x, relative_y)
+        driver.smooth_move(relative_x, relative_y)
         driver.click()
         time.sleep(sleep_time)
 
@@ -381,14 +357,14 @@ def display_image_with_detections(img, closest_enemy_head, closest_enemy, scale,
         _, _, xyxy, conf = closest_enemy_head
         x1, y1, x2, y2 = map(int, xyxy)
         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-        cv2.putText(img, f"{label_head} : {conf}", (x1, y1 - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 1, cv2.LINE_AA)
+        cv2.putText(img, f"{label_head} : {conf:0.3}", (x1, y1 - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 1, cv2.LINE_AA)
 
     if closest_enemy:
         label_enemy = "Enemy"
         _, _, xyxy, conf = closest_enemy
         x1, y1, x2, y2 = map(int, xyxy)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-        cv2.putText(img, f"{label_enemy} : {conf}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 1, cv2.LINE_AA)
+        cv2.putText(img, f"{label_enemy} : {conf:0.3}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 1, cv2.LINE_AA)
 
     height, width = img.shape[:2]
     resized_img = cv2.resize(img, (int(width * scale), int(height * scale)))
@@ -399,10 +375,9 @@ def display_image_with_detections(img, closest_enemy_head, closest_enemy, scale,
 
 
 def main():
+    root = tk.Tk()
     # 加载配置文件
     config = load_config(CONFIG_FILE)
-
-    root = tk.Tk()
     # 根据配置初始化各个参数
     sleep_time_var = tk.DoubleVar(value=config.get("sleep_time", DEFAULT_CONFIG["sleep_time"]))
     click_time = tk.DoubleVar(value=config.get("click_time", DEFAULT_CONFIG["click_time"]))
@@ -434,23 +409,26 @@ def main():
     create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window)
 
     model, driver = initialize_model_and_driver(click_time)
-    sct = mss()
-    monitor = sct.monitors[1]
-    screen_center_x, screen_center_y = get_screen_center(monitor)
 
     capture_x = 640
     capture_y = 640
+
+    sct = mss()
+    monitor = sct.monitors[1]
+    screen_center_x, screen_center_y = get_screen_center(monitor)
     left = screen_center_x - capture_x // 2
     top = screen_center_y - capture_y // 2
     capture_area = {'top': top, 'left': left, 'width': capture_x, 'height': capture_y}
 
     previous_scale = scale.get()
 
-    target_fps = 10
+    # 设定目标帧率为60fps
+    target_fps = 60
     frame_interval = 1.0 / target_fps
 
     while True:
-        start_time = time.time()
+        loop_start = time.time()  # 循环开始计时
+
         current_scale = scale.get()
         if current_scale != previous_scale:
             width = int(640 * current_scale)
@@ -491,17 +469,17 @@ def main():
         if (win32api.GetAsyncKeyState(win32con.VK_SHIFT) < 0 and
                 win32api.GetAsyncKeyState(win32con.VK_ESCAPE) < 0):
             print("退出程序中...")
-            cv2.destroyAllWindows()
-            root.destroy()
-            os._exit(0)
+            break
 
         root.update_idletasks()
         root.update()
 
-        elapsed_time = time.time() - start_time
-        sleep_time_interval = max(0, int(frame_interval - elapsed_time))
-        time.sleep(sleep_time_interval)
-
+        # 控制帧率
+        elapsed_time = time.time() - loop_start
+        remaining_time = frame_interval - elapsed_time
+        if remaining_time > 0:
+            time.sleep(remaining_time)
 
 if __name__ == "__main__":
+    print("主进程PID:", os.getpid())
     main()

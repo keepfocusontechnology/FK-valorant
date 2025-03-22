@@ -34,46 +34,55 @@
 1. git clone 本仓库
 2. 必须先安装这个 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 3. 再运行 pip install -r requirements.txt
-4. 最后请右键管理员运行 valorant.bat 脚本（裸奔有风险，建议使用exe，需自行打包，或联系我）
-5. 如使用venv等虚拟环境请修改bat，内有说明
+4. 安装driver中的 lghub_installer - 2021.3.5164.0 - 2021.3.9205.exe 驱动（请关闭驱动自动更新）
+5. 最后请右键管理员运行 valorant.bat 脚本（裸奔有风险，建议使用exe，需自行打包，或联系我）
+6. 如使用venv等虚拟环境请修改bat，内有说明
 
 注意：由于github上传文件大小限制，不提供Releases下载程序，需要打包好的exe请联系作者，微信 lookJlook
 
 ## 按键说明
 
 1. home键隐藏/显示控制台
-2. 鼠标右键FK射击（使用请修改游戏中的右键瞄准）
+2. 鼠标右键FK射击（使用请修改游戏中的右键瞄准） 
 3. shift+esc 退出
+
+注意： 如游戏中移动出现误差，请调节游戏中的控制灵敏度，推荐0.8左右
 
 # 🌟 English
 
-FK Valorant implemented based on yolov5's machine learning
+Based on yolov5 machine learning, FK Fearless Contract is implemented
 
 ## Features
 
 - 🔄 Visual parameter panel, you can customize your FK parameters
-- 🌓 Customized parameter saving, the most suitable FK parameters for you
+- 🌓 Custom parameter saving, the most suitable FK parameters for you
 - 🎯 Real-time target detection, accurate acquisition of target unit coordinates
 
 ## Installation and use
 
 1. git clone this repository
 
-2. Must install this first pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+2. You must install this pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 3. Then run pip install -r requirements.txt
 
-4. Finally, please right-click the administrator to run the valorant.bat script (there is a risk of running naked, it is recommended to use exe, you need to package it yourself, or contact me)
+4. Install the lghub_installer - 2021.3.5164.0 - 2021.3.9205.exe driver in the driver (please turn off the automatic update of the driver)
+
+5. Finally, please right-click the administrator to run the valorant.bat script (there are risks in running naked, it is recommended to use exe, you need to package it yourself, or contact me)
+
+6. If you use a virtual environment such as venv, please modify the bat, which is explained in the instructions
 
 Note: Due to the size limit of github upload files, Releases download program is not provided. If you need a packaged exe, please contact the author, WeChat lookJlook
 
-## Button Description
+## Key Description
 
-1. Home button hides/shows the console
+1. Home key hide/show console
 
-2. Right-click FK shooting (please modify the right-click aiming in the game)
+2. Right mouse button FK shooting (please modify the right button aiming in the game when using it)
 
 3. Shift+esc to exit
+
+Note: If there is an error in the movement in the game, please adjust the control sensitivity in the game, recommended to be around 0.8
 
 ## ⭐  Star History or Repobeats
 

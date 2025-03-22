@@ -96,9 +96,9 @@ class LGDriver:
         click_time = self.click_time.get()
 
         # 在click_time基础上随机加减微小随机量
-        time_variation = random.uniform(-0.02, 0.05)
+        time_variation = random.uniform(-0.02, 0.03)
         adjusted_click_time = max(click_time + time_variation, 0)
-        time.sleep(adjusted_click_time)
+        self.microsecond_sleep(adjusted_click_time * 1000)
         self.lg_driver.mouse_up(code)
 
     def scroll(self, a):
@@ -329,7 +329,7 @@ def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy):
         time.sleep(sleep_time)
     else:
         if abs_x <= delta_size and abs_y <= delta_size:
-            driver.smooth_move(relative_x, relative_y)
+            driver.move(relative_x, relative_y)
             driver.click()
             time.sleep(sleep_time)
 
@@ -346,7 +346,7 @@ def perform_action_body(driver, relative_x, relative_y, sleep_time, size, body_x
     delta_size = size * (xx / 50)
 
     if abs_x <= delta_size and abs_y <= delta_size:
-        driver.smooth_move(relative_x, relative_y)
+        driver.move(relative_x, relative_y)
         driver.click()
         time.sleep(sleep_time)
 

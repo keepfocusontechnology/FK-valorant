@@ -38,7 +38,7 @@
 5. 最后请右键管理员运行 valorant.bat 脚本（裸奔有风险，建议使用exe，需自行打包，或联系我）
 6. 如使用venv等虚拟环境请修改bat，内有说明
 
-打包程序下载地址：https://pan.quark.cn/s/752e94abcedb
+打包程序下载地址：https://pan.quark.cn/s/32659d21336e
 
 注意：由于github上传文件大小限制，不提供下载，需要打包好的exe请联系作者，WX：lookJlook
 
@@ -76,7 +76,7 @@ Based on yolov5 machine learning, FK Fearless Contract is implemented
 
 6. If you use a virtual environment such as venv, please modify the bat, there are instructions
 
-Package program download address: https://pan.quark.cn/s/752e94abcedb
+Package program download address: https://pan.quark.cn/s/32659d21336e
 
 Note: Due to the size limit of github upload files, download is not provided. If you need a packaged exe, please contact the author, WX: lookJlook
 

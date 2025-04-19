@@ -274,6 +274,9 @@ def create_tk_window(root, scale):
     tk_window.img_label = tk.Label(tk_window)
     tk_window.img_label.pack(fill="both", expand=True)
 
+    tk_window.fps_label = tk.Label(tk_window, text="FPS: 0", fg="white", bg="black")
+    tk_window.fps_label.place(relx=0.1, rely=0.1, anchor=tk.CENTER)
+
     return tk_window
 
 
@@ -423,11 +426,23 @@ def main():
     previous_scale = scale.get()
 
     # 设定目标帧率为60fps
-    target_fps = 60
+    target_fps = 100
     frame_interval = 1.0 / target_fps
+
+    fps_state = {'last_time': time.time(), 'count': 0}
+    fps_update_interval = 1.0
 
     while True:
         loop_start = time.time()  # 循环开始计时
+
+        fps_state['count'] += 1
+        if loop_start - fps_state['last_time'] >= fps_update_interval:
+            elapsed_time = loop_start - fps_state['last_time']
+            current_fps = fps_state['count'] / elapsed_time if elapsed_time > 0 else 0
+            if tk_window and hasattr(tk_window, 'fps_label'):
+                tk_window.fps_label.config(text=f"FPS: {current_fps:.1f}")
+            fps_state['count'] = 0
+            fps_state['last_time'] = loop_start
 
         current_scale = scale.get()
         if current_scale != previous_scale:

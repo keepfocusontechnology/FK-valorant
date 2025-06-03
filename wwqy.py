@@ -93,8 +93,8 @@ class LGDriver:
         if not self.ok:
             return
         self.lg_driver.mouse_down(code)
-        click_time = self.click_time.get()
-
+        # 兼容 tk.DoubleVar 和 float
+        click_time = self.click_time.get() if hasattr(self.click_time, 'get') else float(self.click_time)
         # 在click_time基础上随机加减微小随机量
         time_variation = random.uniform(-0.02, 0.03)
         adjusted_click_time = max(click_time + time_variation, 0)

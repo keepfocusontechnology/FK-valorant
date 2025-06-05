@@ -220,13 +220,24 @@ def initialize_model_and_driver(click_time, retries=3, delay=5):
 
 
 def create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window):
-    root.geometry("215x250+10+25")
+    # 只设置窗口位置，不强制宽高，让内容自适应
+    root.geometry("+10+25")
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.attributes("-alpha", 0.5)
+    root.attributes("-alpha", 0.96)  # 提高不透明度，颜色更深
+
+    # 右上角关闭按钮，绝对定位
+    def on_close():
+        print("[GUI] 用户点击关闭按钮，程序退出。")
+        root.quit()
+        root.destroy()
+        os._exit(0)
+    close_btn = tk.Button(root, text="✕", command=on_close, bg="black", fg="red", borderwidth=0, font=("Arial", 14, "bold"), highlightthickness=0, relief="flat", cursor="hand2")
+    close_btn.place(relx=1.0, rely=0.0, anchor="ne", x=0, y=0)
+    close_btn.lift()
 
     frame = tk.Frame(root, bg="black")
-    frame.pack(fill="both", expand=True)
+    frame.pack(fill="both", expand=True, pady=(18, 12))  # 顶部留18，底部留12，保证内容完整
 
     label_config = {"fg": "white", "bg": "black", "font": ("Arial", 12)}
     button_config = {"bg": "black", "fg": "white", "font": ("Arial", 12)}
@@ -239,19 +250,39 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
         ("窗口大小:", scale)
     ]
 
-    for i, (text, var) in enumerate(labels):
+    # 参数标签及变量、步进、显示格式配置
+    param_settings = [
+        ("弹道恢复:", sleep_time_var, 0.01, 0.25, lambda v: 0.01 if v < 0.05 else 0.02, 2),
+        ("射击时间:", click_time, 0.01, 0.25, lambda v: 0.01 if v < 0.05 else 0.02, 2),
+        ("识别精度:", threshold, 0.1, 1.0, lambda v: 0.05 if v < 0.3 else 0.1, 2),
+        ("瞄准范围:", size, 10, 200, lambda v: 2 if v < 40 else 10, 0),
+        ("窗口大小:", scale, 0.1, 1.0, lambda v: 0.05 if v < 0.3 else 0.1, 2),
+    ]
+
+    for i, (text, var, min_val, max_val, step_func, round_digits) in enumerate(param_settings):
         tk.Label(frame, text=text, **label_config).grid(row=i, column=1, padx=5, pady=5)
-        tk.Label(frame, textvariable=var, **label_config).grid(row=i, column=2, padx=5, pady=5)
+        # 优化显示格式
+        def make_format_var(v, digits):
+            fmt = f"%.{digits}f" if digits > 0 else "%d"
+            return tk.Label(frame, textvariable=v, **label_config, anchor="w", width=6, justify="left")
+        make_format_var(var, round_digits).grid(row=i, column=2, padx=5, pady=5)
 
-    def create_buttons(row, b_var, min_val, max_val, step, round_digits=2):
-        tk.Button(frame, text=" + ", command=lambda: b_var.set(min(round(b_var.get() + step, round_digits), max_val)), **button_config).grid(row=row, column=3, padx=5, pady=5)
-        tk.Button(frame, text=" - ", command=lambda: b_var.set(max(round(b_var.get() - step, round_digits), min_val)), **button_config).grid(row=row, column=0, padx=5, pady=5)
-
-    create_buttons(0, sleep_time_var, 0.01, 0.25, 0.01)
-    create_buttons(1, click_time, 0.01, 0.25, 0.01)
-    create_buttons(2, threshold, 0.1, 1.0, 0.1, 1)
-    create_buttons(3, size, 10, 200, 10, 0)
-    create_buttons(4, scale, 0.1, 1.0, 0.1, 1)
+        # 自适应步进按钮
+        def make_inc_dec(var, min_val, max_val, step_func, round_digits):
+            def inc():
+                val = var.get()
+                step = step_func(val)
+                new_val = min(round(val + step, round_digits), max_val)
+                var.set(new_val)
+            def dec():
+                val = var.get()
+                step = step_func(val)
+                new_val = max(round(val - step, round_digits), min_val)
+                var.set(new_val)
+            return inc, dec
+        inc, dec = make_inc_dec(var, min_val, max_val, step_func, round_digits)
+        tk.Button(frame, text=" + ", command=inc, **button_config).grid(row=i, column=3, padx=5, pady=5)
+        tk.Button(frame, text=" - ", command=dec, **button_config).grid(row=i, column=0, padx=5, pady=5)
 
     def toggle_display():
         display_var.set(not display_var.get())
@@ -260,15 +291,15 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
     tk.Button(frame, text="显示/隐藏", command=toggle_display, **button_config).grid(row=5, column=1, columnspan=2, padx=5, pady=5)
 
 
-def create_tk_window(root, scale):
-    width = int(640 * scale.get())
-    height = int(640 * scale.get())
+def create_tk_window(root, scale, capture_x=640, capture_y=480):
+    width = int(capture_x * scale.get())
+    height = int(capture_y * scale.get())
 
     tk_window = tk.Toplevel(root)
     tk_window.overrideredirect(True)
     tk_window.attributes("-topmost", True)
     tk_window.geometry(f"{width}x{height}+10+280")
-    tk_window.attributes("-alpha", 1)
+    tk_window.attributes("-alpha", 0.98)  # 提高不透明度
     tk_window.withdraw()
 
     tk_window.img_label = tk.Label(tk_window)
@@ -276,6 +307,11 @@ def create_tk_window(root, scale):
 
     tk_window.fps_label = tk.Label(tk_window, text="FPS: 0", fg="white", bg="black")
     tk_window.fps_label.place(relx=0.1, rely=0.1, anchor=tk.CENTER)
+
+    # 保存当前宽高，便于主循环动态调整
+    tk_window._last_size = (width, height)
+    tk_window._capture_x = capture_x
+    tk_window._capture_y = capture_y
 
     return tk_window
 
@@ -292,7 +328,8 @@ def capture_screen(sct, capture_area):
 
 
 def detect_enemy(model, img, capture_x, capture_y, confidence_threshold):
-    results = model(img, size=640)
+    # 降低推理分辨率，加速
+    results = model(img, size=320)
     detections = results.xyxy[0].cpu().numpy()
     enemy_head_results = []
     enemy_results = []
@@ -316,7 +353,7 @@ def detect_enemy(model, img, capture_x, capture_y, confidence_threshold):
     return closest_enemy_head, closest_enemy
 
 
-def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy):
+def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy, detect_end_time=None):
     abs_x = abs(relative_x)
     abs_y = abs(relative_y)
     xyxy = head_xyxy
@@ -327,17 +364,23 @@ def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy):
     m_x = abs((x2 - x1) / 2)
     m_y = abs((y2 - y1) / 2)
 
+    fire_time = None
     if abs_x < m_x and abs_y < m_y:
+        fire_time = time.time()
         driver.click()
         time.sleep(sleep_time)
     else:
         if abs_x <= delta_size and abs_y <= delta_size:
             driver.move(relative_x, relative_y)
+            fire_time = time.time()
             driver.click()
             time.sleep(sleep_time)
+    if detect_end_time is not None and fire_time is not None:
+        return fire_time
+    return None
 
 
-def perform_action_body(driver, relative_x, relative_y, sleep_time, size, body_xyxy):
+def perform_action_body(driver, relative_x, relative_y, sleep_time, size, body_xyxy, detect_end_time=None):
     x1, y1, x2, y2 = body_xyxy
     delta_y = y2 - y1
     adjustment_factor = 0.34 + 0.1 * (1 - math.exp(-0.01 * (delta_y - 50)))
@@ -348,10 +391,15 @@ def perform_action_body(driver, relative_x, relative_y, sleep_time, size, body_x
     xx = x2 - x1
     delta_size = size * (xx / 50)
 
+    fire_time = None
     if abs_x <= delta_size and abs_y <= delta_size:
         driver.move(relative_x, relative_y)
+        fire_time = time.time()
         driver.click()
         time.sleep(sleep_time)
+    if detect_end_time is not None and fire_time is not None:
+        return fire_time
+    return None
 
 
 def display_image_with_detections(img, closest_enemy_head, closest_enemy, scale, tk_window):
@@ -407,35 +455,50 @@ def main():
     scale.trace_add("write", update_config)
     size.trace_add("write", update_config)
 
-    tk_window = create_tk_window(root, scale)
+    capture_x = 480
+    capture_y = 360
+
+    tk_window = create_tk_window(root, scale, capture_x, capture_y)
     control_panel_visible = True
     create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window)
 
     model, driver = initialize_model_and_driver(click_time)
 
-    capture_x = 640
-    capture_y = 640
-
-    sct = mss()
-    monitor = sct.monitors[1]
-    screen_center_x, screen_center_y = get_screen_center(monitor)
-    left = screen_center_x - capture_x // 2
-    top = screen_center_y - capture_y // 2
-    capture_area = {'top': top, 'left': left, 'width': capture_x, 'height': capture_y}
-
     previous_scale = scale.get()
 
+    # 初始化 mss 截图对象
+    sct = mss()
+    # 获取主显示器信息
+    monitor = sct.monitors[1]  # 1为主屏
+    screen_cx, screen_cy = get_screen_center(monitor)
+    # 计算初始截图区域
+    def get_capture_area():
+        x = int(screen_cx - capture_x // 2)
+        y = int(screen_cy - capture_y // 2)
+        return {"top": y, "left": x, "width": capture_x, "height": capture_y}
+    capture_area = get_capture_area()
+
+    # 当窗口缩放或截图分辨率变化时，动态更新截图区域
+    def update_capture_area():
+        nonlocal capture_area
+        capture_area = get_capture_area()
+
+    # 若后续有动态调整capture_x/capture_y/scale，可在对应位置调用update_capture_area()
+
     # 设定目标帧率为60fps
-    target_fps = 100
+    target_fps = 60
     frame_interval = 1.0 / target_fps
 
     fps_state = {'last_time': time.time(), 'count': 0}
     fps_update_interval = 1.0
+    frame_count = 0  # 新增帧计数
+    last_print_time = time.time()  # 控制print频率
 
     while True:
         loop_start = time.time()  # 循环开始计时
 
         fps_state['count'] += 1
+        frame_count += 1
         if loop_start - fps_state['last_time'] >= fps_update_interval:
             elapsed_time = loop_start - fps_state['last_time']
             current_fps = fps_state['count'] / elapsed_time if elapsed_time > 0 else 0
@@ -446,19 +509,35 @@ def main():
 
         current_scale = scale.get()
         if current_scale != previous_scale:
-            width = int(640 * current_scale)
-            height = int(640 * current_scale)
+            width = int(capture_x * current_scale)
+            height = int(capture_y * current_scale)
             tk_window.geometry(f"{width}x{height}+10+280")
+            tk_window._last_size = (width, height)
             previous_scale = current_scale
 
+        img_start = time.time()
         if win32api.GetAsyncKeyState(VK_RBUTTON) < 0:
             img = capture_screen(sct, capture_area)
+            img_end = time.time()
+            det_start = time.time()
             closest_enemy_head, closest_enemy = detect_enemy(model, img, capture_x, capture_y, threshold.get())
+            det_end = time.time()
+            fire_time = None
             if closest_enemy_head and len(closest_enemy_head) > 2:
-                perform_action(driver, *closest_enemy_head[:2], sleep_time_var.get(), size.get(), closest_enemy_head[2])
+                fire_time = perform_action(driver, *closest_enemy_head[:2], sleep_time_var.get(), size.get(), closest_enemy_head[2], detect_end_time=det_end)
+                if time.time() - last_print_time > 1.0:
+                    delay_ms = (fire_time - det_end) * 1000 if fire_time else None
+                    delay_str = f"{delay_ms:.1f}ms" if delay_ms is not None else "--"
+                    print(f"[右键] 抓图: {img_end-img_start:.3f}s, 检测: {det_end-det_start:.3f}s, 检测到开火: {delay_str}, 总: {det_end-loop_start:.3f}s")
+                    last_print_time = time.time()
                 continue
             if closest_enemy and len(closest_enemy) > 2:
-                perform_action_body(driver, *closest_enemy[:2], sleep_time_var.get(), size.get(), closest_enemy[2])
+                fire_time = perform_action_body(driver, *closest_enemy[:2], sleep_time_var.get(), size.get(), closest_enemy[2], detect_end_time=det_end)
+                if time.time() - last_print_time > 1.0:
+                    delay_ms = (fire_time - det_end) * 1000 if fire_time else None
+                    delay_str = f"{delay_ms:.1f}ms" if delay_ms is not None else "--"
+                    print(f"[右键] 抓图: {img_end-img_start:.3f}s, 检测: {det_end-det_start:.3f}s, 检测到开火: {delay_str}, 总: {det_end-loop_start:.3f}s")
+                    last_print_time = time.time()
 
         if win32api.GetAsyncKeyState(win32con.VK_F6) < 0:
             click_time.set(0.01)
@@ -476,10 +555,19 @@ def main():
             control_panel_visible = not control_panel_visible
             time.sleep(0.2)
 
-        if display_var.get():
+        # Tk窗口每2帧刷新一次，减少PIL+Tk转换频率
+        if display_var.get() and frame_count % 2 == 0:
             img = capture_screen(sct, capture_area)
+            img_end = time.time()
+            det_start = time.time()
             closest_enemy_head, closest_enemy = detect_enemy(model, img, capture_x, capture_y, threshold.get())
+            det_end = time.time()
+            disp_start = time.time()
             display_image_with_detections(img, closest_enemy_head, closest_enemy, scale.get(), tk_window)
+            disp_end = time.time()
+            if time.time() - last_print_time > 1.0:
+                print(f"[显示] 抓图: {img_end-img_start:.3f}s, 检测: {det_end-det_start:.3f}s, 显示: {disp_end-disp_start:.3f}s, 总: {disp_end-loop_start:.3f}s")
+                last_print_time = time.time()
 
         if (win32api.GetAsyncKeyState(win32con.VK_SHIFT) < 0 and
                 win32api.GetAsyncKeyState(win32con.VK_ESCAPE) < 0):
@@ -489,11 +577,11 @@ def main():
         root.update_idletasks()
         root.update()
 
-        # 控制帧率
-        elapsed_time = time.time() - loop_start
-        remaining_time = frame_interval - elapsed_time
-        if remaining_time > 0:
-            time.sleep(remaining_time)
+        # 注释掉帧率sleep，测试极限FPS
+        # elapsed_time = time.time() - loop_start
+        # remaining_time = frame_interval - elapsed_time
+        # if remaining_time > 0:
+        #     time.sleep(remaining_time)
 
 if __name__ == "__main__":
     print("主进程PID:", os.getpid())

@@ -13,7 +13,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 import ctypes
 import win32api
-
+from filterpy.kalman import KalmanFilter
 
 # 鼠标按键对应的虚拟键码
 VK_LBUTTON = 0x01  # 左键
@@ -30,7 +30,8 @@ DEFAULT_CONFIG = {
     "display": False,
     "threshold": 0.3,
     "scale": 0.5,
-    "size": 60
+    "size": 60,
+    "recoil_comp": 8  # 新增：后坐力补偿像素
 }
 
 
@@ -219,7 +220,7 @@ def initialize_model_and_driver(click_time, retries=3, delay=5):
                 return None, None
 
 
-def create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window):
+def create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window, recoil_comp_var):
     # 只设置窗口位置，不强制宽高，让内容自适应
     root.geometry("+10+25")
     root.overrideredirect(True)
@@ -247,7 +248,8 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
         ("射击时间:", click_time),
         ("识别精度:", threshold),
         ("瞄准范围:", size),
-        ("窗口大小:", scale)
+        ("窗口大小:", scale),
+        ("后坐力补偿:", recoil_comp_var)
     ]
 
     # 参数标签及变量、步进、显示格式配置
@@ -257,6 +259,7 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
         ("识别精度:", threshold, 0.1, 1.0, lambda v: 0.05 if v < 0.3 else 0.1, 2),
         ("瞄准范围:", size, 10, 200, lambda v: 2 if v < 40 else 10, 0),
         ("窗口大小:", scale, 0.1, 1.0, lambda v: 0.05 if v < 0.3 else 0.1, 2),
+        ("后坐力补偿:", recoil_comp_var, 0, 30, lambda v: 1, 0),  # 新增后坐力补偿
     ]
 
     for i, (text, var, min_val, max_val, step_func, round_digits) in enumerate(param_settings):
@@ -284,11 +287,28 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
         tk.Button(frame, text=" + ", command=inc, **button_config).grid(row=i, column=3, padx=5, pady=5)
         tk.Button(frame, text=" - ", command=dec, **button_config).grid(row=i, column=0, padx=5, pady=5)
 
+    # 显示/隐藏按钮功能
     def toggle_display():
         display_var.set(not display_var.get())
-        tk_window.withdraw() if not display_var.get() else tk_window.deiconify()
+        if not display_var.get():
+            tk_window.withdraw()
+        else:
+            # 获取主控面板(root)的位置和高度
+            root.update_idletasks()
+            root_x = root.winfo_x()
+            root_y = root.winfo_y()
+            root_h = root.winfo_height()
+            win_w = tk_window.winfo_width() if tk_window.winfo_width() > 1 else tk_window._last_size[0]
+            win_h = tk_window.winfo_height() if tk_window.winfo_height() > 1 else tk_window._last_size[1]
+            # 弹窗左对齐主控面板，纵向紧贴主控面板下方
+            x = root_x
+            y = root_y + root_h + 20  # 下方留20像素间隔
+            tk_window.geometry(f"{win_w}x{win_h}+{x}+{y}")
+            tk_window.deiconify()
+            tk_window.lift()
 
-    tk.Button(frame, text="显示/隐藏", command=toggle_display, **button_config).grid(row=5, column=1, columnspan=2, padx=5, pady=5)
+    # 调整显示/隐藏按钮位置，放在参数区下方单独一行
+    tk.Button(frame, text="显示/隐藏", command=toggle_display, **button_config).grid(row=len(param_settings), column=0, columnspan=4, padx=5, pady=(10, 5))
 
 
 def create_tk_window(root, scale, capture_x=640, capture_y=480):
@@ -353,7 +373,7 @@ def detect_enemy(model, img, capture_x, capture_y, confidence_threshold):
     return closest_enemy_head, closest_enemy
 
 
-def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy, detect_end_time=None):
+def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy, detect_end_time=None, recoil_comp=8):
     abs_x = abs(relative_x)
     abs_y = abs(relative_y)
     xyxy = head_xyxy
@@ -368,12 +388,14 @@ def perform_action(driver, relative_x, relative_y, sleep_time, size, head_xyxy, 
     if abs_x < m_x and abs_y < m_y:
         fire_time = time.time()
         driver.click()
+        driver.move(0, -recoil_comp)  # 新增后坐力补偿，负值向下
         time.sleep(sleep_time)
     else:
         if abs_x <= delta_size and abs_y <= delta_size:
             driver.move(relative_x, relative_y)
             fire_time = time.time()
             driver.click()
+            driver.move(0, -recoil_comp)  # 新增后坐力补偿
             time.sleep(sleep_time)
     if detect_end_time is not None and fire_time is not None:
         return fire_time
@@ -425,6 +447,21 @@ def display_image_with_detections(img, closest_enemy_head, closest_enemy, scale,
     tk_window.img_label.image = tk_img
 
 
+def create_kalman_filter(init_x, init_y):
+    kf = KalmanFilter(dim_x=4, dim_z=2)
+    kf.x = np.array([init_x, init_y, 0, 0], dtype=float)
+    kf.F = np.array([[1, 0, 1, 0],
+                    [0, 1, 0, 1],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]], dtype=float)
+    kf.H = np.array([[1, 0, 0, 0],
+                    [0, 1, 0, 0]], dtype=float)
+    kf.P *= 10
+    kf.R = np.eye(2) * 0.05  # 观测噪声
+    kf.Q = np.eye(4) * 0.2   # 过程噪声
+    return kf
+
+
 def main():
     root = tk.Tk()
     # 加载配置文件
@@ -436,6 +473,7 @@ def main():
     threshold = tk.DoubleVar(value=config.get("threshold", DEFAULT_CONFIG["threshold"]))
     scale = tk.DoubleVar(value=config.get("scale", DEFAULT_CONFIG["scale"]))
     size = tk.DoubleVar(value=config.get("size", DEFAULT_CONFIG["size"]))
+    recoil_comp_var = tk.IntVar(value=config.get("recoil_comp", DEFAULT_CONFIG["recoil_comp"]))  # 新增
 
     # 定义当参数发生变化时自动保存到配置文件的回调函数
     def update_config(*args):
@@ -445,6 +483,7 @@ def main():
         config["threshold"] = threshold.get()
         config["scale"] = scale.get()
         config["size"] = size.get()
+        config["recoil_comp"] = recoil_comp_var.get()  # 新增
         save_config(CONFIG_FILE, config)
 
     # 为变量添加 trace，当值发生变化时触发保存
@@ -454,13 +493,14 @@ def main():
     threshold.trace_add("write", update_config)
     scale.trace_add("write", update_config)
     size.trace_add("write", update_config)
+    recoil_comp_var.trace_add("write", update_config)  # 新增
 
     capture_x = 480
     capture_y = 360
 
     tk_window = create_tk_window(root, scale, capture_x, capture_y)
     control_panel_visible = True
-    create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window)
+    create_control_panel(root, sleep_time_var, click_time, display_var, threshold, scale, size, tk_window, recoil_comp_var)
 
     model, driver = initialize_model_and_driver(click_time)
 
@@ -494,6 +534,12 @@ def main():
     frame_count = 0  # 新增帧计数
     last_print_time = time.time()  # 控制print频率
 
+    kalman = None
+    last_head = None
+    last_head_xyxy = None
+    lost_count = 0
+    max_lost = 5  # 允许丢失帧数
+
     while True:
         loop_start = time.time()  # 循环开始计时
 
@@ -516,21 +562,80 @@ def main():
             previous_scale = current_scale
 
         img_start = time.time()
-        if win32api.GetAsyncKeyState(VK_RBUTTON) < 0:
+        # 将右键检测改为~键（VK_OEM_3）
+        if win32api.GetAsyncKeyState(0xC0) < 0:  # 0xC0为~键（美式键盘VK_OEM_3）
             img = capture_screen(sct, capture_area)
             img_end = time.time()
             det_start = time.time()
             closest_enemy_head, closest_enemy = detect_enemy(model, img, capture_x, capture_y, threshold.get())
             det_end = time.time()
             fire_time = None
+            # 卡尔曼滤波优化 + 动态吸附区 + Q/R自适应 + 平滑插值
             if closest_enemy_head and len(closest_enemy_head) > 2:
-                fire_time = perform_action(driver, *closest_enemy_head[:2], sleep_time_var.get(), size.get(), closest_enemy_head[2], detect_end_time=det_end)
-                if time.time() - last_print_time > 1.0:
+                head_x, head_y, head_xyxy, conf = closest_enemy_head[:4]
+                # 判断是否为同一目标（IOU或中心点距离）
+                is_same = False
+                if last_head_xyxy is not None:
+                    x1, y1, x2, y2 = head_xyxy
+                    lx1, ly1, lx2, ly2 = last_head_xyxy
+                    iou = (max(0, min(x2, lx2) - max(x1, lx1)) * max(0, min(y2, ly2) - max(y1, ly1))) / (
+                        (x2 - x1) * (y2 - y1) + (lx2 - lx1) * (ly2 - ly1) - max(0, min(x2, lx2) - max(x1, lx1)) * max(0, min(y2, ly2) - max(y1, ly1)) + 1e-6)
+                    dist = np.linalg.norm([head_x - last_head[0], head_y - last_head[1]])
+                    if iou > 0.2 or dist < 30:
+                        is_same = True
+                # 计算目标速度
+                velocity = 0
+                if last_head is not None:
+                    velocity = np.linalg.norm([head_x - last_head[0], head_y - last_head[1]])
+                # Q/R自适应调整
+                Q_base, R_base = 0.2, 0.05
+                Q = Q_base + min(velocity / 30, 2.0)  # 速度越大Q越大
+                R = R_base + min(velocity / 60, 0.2)  # 速度越大R略增
+                # 吸附区半径自适应
+                base_radius = 28
+                radius = base_radius + min(velocity * 0.8, 40)  # 速度越快吸附区越大
+                if kalman is None or not is_same:
+                    kalman = create_kalman_filter(head_x, head_y)
+                    lost_count = 0
+                else:
+                    kalman.Q = np.eye(4) * Q
+                    kalman.R = np.eye(2) * R
+                    kalman.predict()
+                    kalman.update([head_x, head_y])
+                kalman.predict()  # 再次预测，获取下一时刻预测值
+                pred_x, pred_y = kalman.x[0], kalman.x[1]
+                # 计算预测点与头部中心距离
+                pred_dist = np.linalg.norm([pred_x - head_x, pred_y - head_y])
+                # 吸附区机制+平滑插值
+                if pred_dist < radius:
+                    aim_x, aim_y = pred_x, pred_y
+                    absorb_state = '吸附'
+                else:
+                    # 区外平滑插值靠近预测点
+                    alpha = min(0.25 + velocity/60, 0.7)  # 插值系数随速度增大
+                    aim_x = (1-alpha)*head_x + alpha*pred_x
+                    aim_y = (1-alpha)*head_y + alpha*pred_y
+                    absorb_state = '插值靠近'
+                # 日志输出
+                if time.time() - last_print_time > 0.5:
+                    print(f"[KF] v={velocity:.1f} Q={Q:.2f} R={R:.2f} 吸附区r={radius:.1f} 状态:{absorb_state} 原:({head_x:.1f},{head_y:.1f}) 预测:({pred_x:.1f},{pred_y:.1f}) 瞄准:({aim_x:.1f},{aim_y:.1f}) 距离:{pred_dist:.1f}")
+                # 用aim_x, aim_y瞄准
+                fire_time = perform_action(driver, aim_x, aim_y, sleep_time_var.get(), size.get(), head_xyxy, detect_end_time=det_end, recoil_comp=recoil_comp_var.get())
+                last_head = (head_x, head_y)
+                last_head_xyxy = head_xyxy
+                lost_count = 0
+                if time.time() - last_print_time > 0.5:
                     delay_ms = (fire_time - det_end) * 1000 if fire_time else None
                     delay_str = f"{delay_ms:.1f}ms" if delay_ms is not None else "--"
                     print(f"[右键] 抓图: {img_end-img_start:.3f}s, 检测: {det_end-det_start:.3f}s, 检测到开火: {delay_str}, 总: {det_end-loop_start:.3f}s")
                     last_print_time = time.time()
                 continue
+            else:
+                lost_count += 1
+                if lost_count > max_lost:
+                    kalman = None
+                    last_head = None
+                    last_head_xyxy = None
             if closest_enemy and len(closest_enemy) > 2:
                 fire_time = perform_action_body(driver, *closest_enemy[:2], sleep_time_var.get(), size.get(), closest_enemy[2], detect_end_time=det_end)
                 if time.time() - last_print_time > 1.0:

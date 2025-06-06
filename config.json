@@ -1,8 +1,9 @@
 {
-    "sleep_time": 0.03,
-    "click_time": 0.05,
-    "display": true,
-    "threshold": 0.4,
-    "scale": 0.9,
-    "size": 200.0
+    "sleep_time": 0.04,
+    "click_time": 0.13,
+    "display": false,
+    "threshold": 0.6,
+    "scale": 0.8,
+    "size": 100.0,
+    "recoil_comp": 8
 }

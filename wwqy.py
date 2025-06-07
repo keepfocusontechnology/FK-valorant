@@ -351,6 +351,8 @@ def detect_enemy(model, img, capture_x, capture_y, confidence_threshold):
     # 降低推理分辨率，加速
     results = model(img, size=320)
     detections = results.xyxy[0].cpu().numpy()
+
+    # --- 识别与目标筛选 ---
     enemy_head_results = []
     enemy_results = []
 
@@ -367,6 +369,7 @@ def detect_enemy(model, img, capture_x, capture_y, confidence_threshold):
         elif model.names[int(cls)] == 'enemy':
             enemy_results.append((relative_x, relative_y, xyxy, conf, distance_to_center))
 
+    # --- 筛选距离中心最近的头部和身体 ---
     closest_enemy_head = min(enemy_head_results, key=lambda x: x[4])[:4] if enemy_head_results else []
     closest_enemy = min(enemy_results, key=lambda x: x[4])[:4] if enemy_results else []
 

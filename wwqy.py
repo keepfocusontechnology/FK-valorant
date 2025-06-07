@@ -301,9 +301,7 @@ if __name__ == "__main__":
                         lost_count = 0
                 else:
                     lost_count += 1
-                    print(f"[INFO] 未检测到头部目标，lost_count={lost_count}")
                     if lost_count > max_lost:
-                        print("[INFO] 连续未检测到目标，重置目标状态")
                         kalman = None
                         last_head = None
                         last_head_xyxy = None

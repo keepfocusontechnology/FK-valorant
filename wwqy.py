@@ -225,7 +225,7 @@ def create_control_panel(root, sleep_time_var, click_time, display_var, threshol
     root.geometry("+10+25")
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.attributes("-alpha", 0.96)  # 提高不透明度，颜色更深
+    root.attributes("-alpha", 0.6)  # 提高不透明度，颜色更深
 
     # 右上角关闭按钮，绝对定位
     def on_close():
@@ -318,8 +318,8 @@ def create_tk_window(root, scale, capture_x=640, capture_y=480):
     tk_window = tk.Toplevel(root)
     tk_window.overrideredirect(True)
     tk_window.attributes("-topmost", True)
-    tk_window.geometry(f"{width}x{height}+10+280")
-    tk_window.attributes("-alpha", 0.98)  # 提高不透明度
+    tk_window.geometry(f"{width}x{height}+20+280")
+    tk_window.attributes("-alpha", 1)  # 提高不透明度
     tk_window.withdraw()
 
     tk_window.img_label = tk.Label(tk_window)
